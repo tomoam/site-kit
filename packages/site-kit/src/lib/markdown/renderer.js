@@ -187,7 +187,11 @@ function parse({ body, code, codespan, type_links }) {
 	/** @type {string} */
 	const content = transform(body, {
 		heading(html, level, raw) {
-			const title = html
+			const match = html.match(/(.*?)(?:\s(<!--(.*?)-->))?$/);
+
+			const text = (match && match[2]) ? match[1] : html;
+
+			const title = text
 				.replace(/<\/?code>/g, '')
 				.replace(/&quot;/g, '"')
 				.replace(/&lt;/g, '<')
@@ -195,14 +199,14 @@ function parse({ body, code, codespan, type_links }) {
 
 			current = title;
 
-			const normalized = normalizeSlugify(raw);
+			const normalized = (match && match[2]) ? match[3] : normalizeSlugify(raw);
 
 			headings[level - 1] = normalized;
 			headings.length = level;
 
 			const slug = headings.filter(Boolean).join('-');
 
-			return `<h${level} id="${slug}">${html
+			return `<h${level} id="${slug}">${text
 				.replace(/<\/?code>/g, '')
 				.replace(
 					/^\[TYPE\]:\s+(.+)/,
