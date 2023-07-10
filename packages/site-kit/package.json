@@ -10,14 +10,14 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/sveltejs/site-kit.git"
+		"url": "git+https://github.com/tomoam/site-kit.git"
 	},
 	"author": "Rich Harris",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/sveltejs/site-kit/issues"
+		"url": "https://github.com/tomoam/site-kit/issues"
 	},
-	"homepage": "https://github.com/sveltejs/site-kit#readme",
+	"homepage": "https://github.com/tomoam/site-kit#readme",
 	"dependencies": {
 		"esm-env": "^1.0.0",
 		"svelte-local-storage-store": "^0.5.0"
