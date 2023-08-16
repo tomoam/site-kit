@@ -1,5 +1,86 @@
 # @sveltejs/site-kit changelog
 
+## 6.0.0-next.31
+
+### Patch Changes
+
+- 3748082: (chore) fix external link small disappearing
+
+## 6.0.0-next.30
+
+### Patch Changes
+
+- 426118c: fix searchbox no-results slot forwarding
+
+## 6.0.0-next.29
+
+### Patch Changes
+
+- e1f83f8: forward searchbox slot
+
+## 6.0.0-next.28
+
+### Patch Changes
+
+- 114807a: chore: Lazy load non essential modules in renderer
+
+## 6.0.0-next.27
+
+### Patch Changes
+
+- 9e0b164: add more i18n slots
+
+## 6.0.0-next.26
+
+### Patch Changes
+
+- d26f9b8: fix: js to ts transformation for code blocks
+
+## 6.0.0-next.25
+
+### Minor Changes
+
+- e370935: (feat) Homepage footer
+
+### Patch Changes
+
+- c1cb24a: (fix) discs appearing on ordered lists
+
+## 6.0.0-next.24
+
+### Minor Changes
+
+- e32c4d2: (feat) Add homepage Try section
+
+### Patch Changes
+
+- 5239b59: (fix) 10x faster code cache reads
+
+## 6.0.0-next.23
+
+### Minor Changes
+
+- bbd1f7e: (feat) Async markdown renderer
+- 1831071: (feat) Copy code pragma
+
+## 6.0.0-next.22
+
+### Patch Changes
+
+- 328e0aa: (fix) Await copy function in CopyCodeButton
+
+## 6.0.0-next.21
+
+### Minor Changes
+
+- 5498d82: Copy code button
+
+### Patch Changes
+
+- c31f579: (fix) reset search query when opening modal
+- 83a366a: hide scrollbar in aside
+- 1462fbe: Fix nav flickering on mobile
+
 ## 6.0.0-next.20
 
 ### Patch Changes

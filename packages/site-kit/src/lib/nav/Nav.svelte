@@ -37,7 +37,7 @@ Top navigation bar for the application. It provides a slot for the left side, th
 
 		const scroll = root_scroll_element.scrollTop;
 		if (!hash_changed) {
-			visible = scroll < 50 || scroll < last_scroll;
+			visible = scroll === last_scroll ? visible : scroll < 50 || scroll < last_scroll;
 		}
 
 		last_scroll = scroll;
@@ -99,7 +99,7 @@ Top navigation bar for the application. It provides a slot for the left side, th
 			<slot name="external-links" />
 
 			<div class="appearance">
-				<span class="caption">Theme</span>
+				<span class="caption"><slot name="theme-label">Theme</slot></span>
 				<ThemeToggle />
 			</div>
 		</div>
@@ -124,7 +124,7 @@ Top navigation bar for the application. It provides a slot for the left side, th
 			<Separator />
 
 			<div class="appearance">
-				<span class="caption">Theme</span>
+				<span class="caption"><slot name="theme-label">Theme</slot></span>
 				<ThemeToggle />
 			</div>
 		</Menu>
@@ -195,6 +195,7 @@ Top navigation bar for the application. It provides a slot for the left side, th
 	}
 
 	.home-link {
+		max-width: max-content;
 		height: 100%;
 		display: flex;
 		background-image: url(../branding/svelte-logo.svg);
@@ -236,6 +237,10 @@ Top navigation bar for the application. It provides a slot for the left side, th
 
 	.desktop {
 		display: none;
+	}
+
+	nav :global(.small) {
+		display: block;
 	}
 
 	button {
