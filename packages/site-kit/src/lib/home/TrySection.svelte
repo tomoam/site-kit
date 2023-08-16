@@ -13,7 +13,7 @@
 						ローカルで試すか、<a target="_blank" rel="noreferrer" href="https://sveltekit.new"
 							>StackBlitz で試すか</a
 						>、
-						<a target="_blank" href="https://learn.svelte.dev">インタラクティブなチュートリアル</a>をお試しください。
+						<a target="_blank" href="https://learn.svelte.jp">インタラクティブなチュートリアル</a>をお試しください。
 					</slot>
 				</div>
 			</div>
