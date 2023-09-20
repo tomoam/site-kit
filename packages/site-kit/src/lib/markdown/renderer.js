@@ -11,8 +11,9 @@ import { SHIKI_LANGUAGE_MAP, escape, normalizeSlugify, transform } from './utils
  * @typedef {'file' | 'link' | 'copy'} MetadataKeys
  */
 
+// Supports js, svelte, yaml files
 const METADATA_REGEX =
-	/(?:<!---\s*|\/\/\/\s*)(?<key>file|link|copy):\s*(?<value>.*?)(?:\s*--->|$)\n/gm;
+	/(?:<!---\s*|\/\/\/\s*|###\s*)(?<key>file|link|copy):\s*(?<value>.*?)(?:\s*--->|$)\n/gm;
 
 /** @type {Map<string, string>} */
 const CACHE_MAP = new Map();
@@ -112,6 +113,7 @@ export async function render_content_markdown(
 	{ twoslashBanner, modules = [], cacheCodeSnippets = true, resolveTypeLinks } = {}
 ) {
 	twoslash_module ??= await import('shiki-twoslash');
+	prettier_module ??= await import('prettier');
 
 	const highlighter = await twoslash_module.createShikiHighlighter({ theme: 'css-variables' });
 
@@ -119,14 +121,14 @@ export async function render_content_markdown(
 	const SNIPPET_CACHE = await create_snippet_cache(cacheCodeSnippets);
 
 	return parse({
-		body: await generate_ts_from_js(replace_export_type_placeholders(body, modules)),
+		body: await generate_ts_from_js(await replace_export_type_placeholders(body, modules)),
 		type_links,
 		code: (source, language, current) => {
 			const cached_snippet = SNIPPET_CACHE.get(source + language + current);
 			if (cached_snippet.code) return cached_snippet.code;
 
 			/** @type {SnippetOptions} */
-			const options = { file: null, link: null, copy: false };
+			const options = { file: null, link: null, copy: true };
 
 			source = collect_options(source, options);
 			source = adjust_tab_indentation(source, language);
@@ -213,7 +215,7 @@ export async function render_content_markdown(
  *   codespan: (source: string) => string;
  * }} opts
  */
-function parse({ body, code, codespan, type_links }) {
+async function parse({ body, code, codespan }) {
 	/** @type {string[]} */
 	const headings = [];
 
@@ -222,7 +224,7 @@ function parse({ body, code, codespan, type_links }) {
 	let current = '';
 
 	/** @type {string} */
-	const content = transform(body, {
+	const content = await transform(body, {
 		heading(html, level, raw) {
 			const match = html.match(/(.*?)(?:\s(<!--(.*?)-->))?$/);
 
@@ -243,12 +245,10 @@ function parse({ body, code, codespan, type_links }) {
 
 			const slug = headings.filter(Boolean).join('-');
 
-			return `<h${level} id="${slug}">${text
-				.replace(/<\/?code>/g, '')
-				.replace(
-					/^\[TYPE\]:\s+(.+)/,
-					'$1'
-				)}<a href="#${slug}" class="permalink"><span class="visually-hidden">permalink</span></a></h${level}>`;
+			return `<h${level} id="${slug}">${text.replace(
+				/<\/?code>/g,
+				''
+			)}<a href="#${slug}" class="permalink"><span class="visually-hidden">permalink</span></a></h${level}>`;
 		},
 		code: (source, language) => code(source, language ?? 'js', current),
 		codespan
@@ -394,7 +394,10 @@ export async function convert_to_ts(js_code, indent = '', offset = '') {
 							if (variable_statement.name.getText() === 'actions') {
 								code.appendLeft(variable_statement.getEnd(), ` satisfies ${name}`);
 							} else {
-								code.appendLeft(variable_statement.name.getEnd(), `: ${name}${generics ?? ''}`);
+								code.appendLeft(
+									variable_statement.name.getEnd(),
+									`: ${name}${generics ? `<${generics}>` : ''}`
+								);
 							}
 
 							modified = true;
@@ -461,8 +464,6 @@ export async function convert_to_ts(js_code, indent = '', offset = '') {
 		code.appendLeft(insertion_point, offset + import_statements + '\n');
 	}
 
-	prettier_module ??= await import('prettier');
-
 	let transformed = await prettier_module.format(code.toString(), {
 		printWidth: 100,
 		parser: 'typescript',
@@ -521,12 +522,12 @@ export async function convert_to_ts(js_code, indent = '', offset = '') {
  * @param {string} content
  * @param {import('.').Modules} modules
  */
-export function replace_export_type_placeholders(content, modules) {
+export async function replace_export_type_placeholders(content, modules) {
 	const REGEXES = {
 		EXPANDED_TYPES: /> EXPANDED_TYPES: (.+?)#(.+)$/gm,
 		TYPES: /> TYPES: (.+?)(?:#(.+))?$/gm,
 		EXPORT_SNIPPET: /> EXPORT_SNIPPET: (.+?)#(.+)?$/gm,
-		MODULES: /> MODULES/,
+		MODULES: /> MODULES/g, //! /g is VERY IMPORTANT, OR WILL CAUSE INFINITE LOOP
 		EXPORTS: /> EXPORTS: (.+)/
 	};
 
@@ -538,132 +539,101 @@ export function replace_export_type_placeholders(content, modules) {
 			.replace(REGEXES.MODULES, '')
 			.replace(REGEXES.EXPORTS, '');
 	}
+	content = await async_replace(content, REGEXES.EXPANDED_TYPES, async ([_, name, id]) => {
+		const module = modules.find((module) => module.name === name);
+		if (!module) throw new Error(`Could not find module ${name}`);
+		if (!module.types) return '';
 
-	return (
-		content
-			.replace(REGEXES.EXPANDED_TYPES, (_, name, id) => {
-				const module = modules.find((module) => module.name === name);
-				if (!module) throw new Error(`Could not find module ${name}`);
-				if (!module.types) return '';
+		const type = module.types.find((t) => t.name === id);
 
-				const type = module.types.find((t) => t.name === id);
+		if (!type) return '';
 
-				if (!type) return '';
+		return (
+			type.comment +
+			type.children
+				?.map((child) => {
+					let section = `### ${child.name}`;
 
-				return (
-					type.comment +
-					type.children
-						?.map((child) => {
-							let section = `### ${child.name}`;
+					if (child.bullets) {
+						section += `\n\n<div class="ts-block-property-bullets">\n\n${child.bullets.join(
+							'\n'
+						)}\n\n</div>`;
+					}
 
-							if (child.bullets) {
-								section += `\n\n<div class="ts-block-property-bullets">\n\n${child.bullets.join(
-									'\n'
-								)}\n\n</div>`;
-							}
+					section += `\n\n${child.comment}`;
 
-							section += `\n\n${child.comment}`;
+					if (child.children) {
+						section += `\n\n<div class="ts-block-property-children">\n\n${child.children
+							.map((v) => stringify(v))
+							.join('\n')}\n\n</div>`;
+					}
 
-							if (child.children) {
-								section += `\n\n<div class="ts-block-property-children">\n\n${child.children
-									.map((v) => stringify(v))
-									.join('\n')}\n\n</div>`;
-							}
+					return section;
+				})
+				.join('\n\n')
+		);
+	});
 
-							return section;
-						})
-						.join('\n\n')
-				);
-			})
-			.replace(REGEXES.TYPES, (_, name, id) => {
-				const module = modules.find((module) => module.name === name);
-				if (!module) throw new Error(`Could not find module ${name}`);
-				if (!module.types) return '';
+	content = await async_replace(content, REGEXES.TYPES, async ([_, name, id]) => {
+		const module = modules.find((module) => module.name === name);
+		if (!module) throw new Error(`Could not find module ${name}`);
+		if (!module.types) return '';
 
-				if (id) {
-					const type = module.types.find((t) => t.name === id);
+		if (id) {
+			const type = module.types.find((t) => t.name === id);
 
-					if (!type) return '';
+			if (!type) return '';
 
-					return (
-						`<div class="ts-block">${fence(type.snippet, 'dts')}` +
-						type.children?.map((v) => stringify(v)).join('\n\n') +
-						`</div>`
-					);
-				}
+			return (
+				`<div class="ts-block">${fence(type.snippet, 'dts')}` +
+				type.children?.map((v) => stringify(v)).join('\n\n') +
+				`</div>`
+			);
+		}
 
-				return `${module.comment}\n\n${module.types
-					.map((t) => {
-						let children = t.children?.map((val) => stringify(val, 'dts')).join('\n\n');
-						if (t.name === 'Config' || t.name === 'KitConfig') {
-							// special case — we want these to be on a separate page
-							children =
-								'<div class="ts-block-property-details">\n\nSee the [configuration reference](/docs/configuration) for details.</div>';
-						}
+		return `${module.comment}\n\n${(
+			await Promise.all(
+				module.types.map(async (t) => {
+					let children = t.children?.map((val) => stringify(val, 'dts')).join('\n\n');
+					if (t.name === 'Config' || t.name === 'KitConfig') {
+						// special case — we want these to be on a separate page
+						children =
+							'<div class="ts-block-property-details">\n\nSee the [configuration reference](/docs/configuration) for details.</div>';
+					}
 
-						const deprecated = t.deprecated
-							? ` <blockquote class="tag deprecated">${transform(t.deprecated)}</blockquote>`
-							: '';
+					const deprecated = t.deprecated
+						? ` <blockquote class="tag deprecated">${await transform(t.deprecated)}</blockquote>`
+						: '';
 
-						const markdown =
-							`<div class="ts-block">${fence(t.snippet, 'dts')}` + children + `</div>`;
+					const markdown = `<div class="ts-block">${fence(t.snippet, 'dts')}` + children + `</div>`;
 
-						return `### ${t.name}\n\n${deprecated}\n\n${t.comment ?? ''}\n\n${markdown}\n\n`;
-					})
-					.join('')}`;
-			})
-			// @ts-ignore
-			.replace(REGEXES.EXPORT_SNIPPET, (_, name, id) => {
-				const module = modules.find((module) => module.name === name);
-				if (!module) throw new Error(`Could not find module ${name} for EXPORT_SNIPPET clause`);
+					return `### ${t.name}\n\n${deprecated}\n\n${t.comment ?? ''}\n\n${markdown}\n\n`;
+				})
+			)
+		).join('')}`;
+	});
 
-				if (!id) {
-					throw new Error(`id is required for module ${name}`);
-				}
+	content = await async_replace(content, REGEXES.EXPORT_SNIPPET, async ([_, name, id]) => {
+		const module = modules.find((module) => module.name === name);
+		if (!module) throw new Error(`Could not find module ${name} for EXPORT_SNIPPET clause`);
 
-				const exported = module.exports?.filter((t) => t.name === id);
+		if (!id) {
+			throw new Error(`id is required for module ${name}`);
+		}
 
-				return exported
-					?.map((exportVal) => `<div class="ts-block">${fence(exportVal.snippet, 'dts')}</div>`)
-					.join('\n\n');
-			})
-			.replace(REGEXES.MODULES, () => {
-				return modules
-					.map((module) => {
-						if (!module.exports) return;
+		const exported = module.exports?.filter((t) => t.name === id);
 
-						if (module.exports.length === 0 && !module.exempt) return '';
+		return (
+			exported
+				?.map((exportVal) => `<div class="ts-block">${fence(exportVal.snippet, 'dts')}</div>`)
+				.join('\n\n') ?? ''
+		);
+	});
 
-						let import_block = '';
-
-						if (module.exports.length > 0) {
-							// deduplication is necessary for now, because of `error()` overload
-							const exports = Array.from(new Set(module.exports?.map((x) => x.name)));
-
-							let declaration = `import { ${exports.join(', ')} } from '${module.name}';`;
-							if (declaration.length > 80) {
-								declaration = `import {\n\t${exports.join(',\n\t')}\n} from '${module.name}';`;
-							}
-
-							import_block = fence(declaration, 'js');
-						}
-
-						return `## ${module.name}\n\n${import_block}\n\n${module.comment}\n\n${module.exports
-							.map((type) => {
-								const markdown =
-									`<div class="ts-block">${fence(type.snippet)}` +
-									type.children?.map((v) => stringify(v)).join('\n\n') +
-									`</div>`;
-								return `### ${type.name}\n\n${type.comment}\n\n${markdown}`;
-							})
-							.join('\n\n')}`;
-					})
-					.join('\n\n');
-			})
-			.replace(REGEXES.EXPORTS, (_, name) => {
-				const module = modules.find((module) => module.name === name);
-				if (!module) throw new Error(`Could not find module ${name} for EXPORTS: clause`);
-				if (!module.exports) return '';
+	content = await async_replace(content, REGEXES.MODULES, async () => {
+		return modules
+			.map((module) => {
+				if (!module.exports) return;
 
 				if (module.exports.length === 0 && !module.exempt) return '';
 
@@ -671,7 +641,7 @@ export function replace_export_type_placeholders(content, modules) {
 
 				if (module.exports.length > 0) {
 					// deduplication is necessary for now, because of `error()` overload
-					const exports = Array.from(new Set(module.exports.map((x) => x.name)));
+					const exports = Array.from(new Set(module.exports?.map((x) => x.name)));
 
 					let declaration = `import { ${exports.join(', ')} } from '${module.name}';`;
 					if (declaration.length > 80) {
@@ -681,17 +651,52 @@ export function replace_export_type_placeholders(content, modules) {
 					import_block = fence(declaration, 'js');
 				}
 
-				return `${import_block}\n\n${module.comment}\n\n${module.exports
+				return `## ${module.name}\n\n${import_block}\n\n${module.comment}\n\n${module.exports
 					.map((type) => {
 						const markdown =
-							`<div class="ts-block">${fence(type.snippet, 'dts')}` +
-							type.children?.map((val) => stringify(val, 'dts')).join('\n\n') +
+							`<div class="ts-block">${fence(type.snippet)}` +
+							type.children?.map((v) => stringify(v)).join('\n\n') +
 							`</div>`;
 						return `### ${type.name}\n\n${type.comment}\n\n${markdown}`;
 					})
 					.join('\n\n')}`;
 			})
-	);
+			.join('\n\n');
+	});
+
+	content = await async_replace(content, REGEXES.EXPORTS, async ([_, name]) => {
+		const module = modules.find((module) => module.name === name);
+		if (!module) throw new Error(`Could not find module ${name} for EXPORTS: clause`);
+		if (!module.exports) return '';
+
+		if (module.exports.length === 0 && !module.exempt) return '';
+
+		let import_block = '';
+
+		if (module.exports.length > 0) {
+			// deduplication is necessary for now, because of `error()` overload
+			const exports = Array.from(new Set(module.exports.map((x) => x.name)));
+
+			let declaration = `import { ${exports.join(', ')} } from '${module.name}';`;
+			if (declaration.length > 80) {
+				declaration = `import {\n\t${exports.join(',\n\t')}\n} from '${module.name}';`;
+			}
+
+			import_block = fence(declaration, 'js');
+		}
+
+		return `${import_block}\n\n${module.comment}\n\n${module.exports
+			.map((type) => {
+				const markdown =
+					`<div class="ts-block">${fence(type.snippet, 'dts')}` +
+					type.children?.map((val) => stringify(val, 'dts')).join('\n\n') +
+					`</div>`;
+				return `### ${type.name}\n\n${type.comment}\n\n${markdown}`;
+			})
+			.join('\n\n')}`;
+	});
+
+	return content;
 }
 
 /**
@@ -745,7 +750,10 @@ function stringify(member, lang = 'ts') {
 	);
 }
 
-/** @param {string} start_path */
+/**
+ * @param {string} start_path
+ * @return {Promise<string | null>}
+ */
 async function find_nearest_node_modules(start_path) {
 	try {
 		if (await stat(path.join(start_path, 'node_modules'))) {
@@ -758,6 +766,8 @@ async function find_nearest_node_modules(start_path) {
 
 		return find_nearest_node_modules(parentDir);
 	}
+
+	return null;
 }
 
 /**
@@ -874,13 +884,17 @@ function create_type_links(modules, resolve_link) {
 function collect_options(source, options) {
 	METADATA_REGEX.lastIndex = 0;
 
+	let copy_value = 'true';
 	source = source.replace(METADATA_REGEX, (_, key, value) => {
+		if (key === 'copy') {
+			copy_value = value;
+		}
 		options[/** @type {MetadataKeys} */ (key)] = value;
 		return '';
 	});
 
 	options.link = options.link === 'true';
-	options.copy = options.copy === 'true' || (options.file && options.copy !== 'false');
+	options.copy = copy_value === 'true' || (options.file && copy_value !== 'false');
 
 	return source;
 }
@@ -890,18 +904,23 @@ function collect_options(source, options) {
  * @param {string} language
  */
 function adjust_tab_indentation(source, language) {
-	return source
-		.replace(/^([\-\+])?((?:    )+)/gm, (match, prefix = '', spaces) => {
-			if (prefix && language !== 'diff') return match;
+	return (
+		source
+			// TODO: what exactly is going on here? The regex finds spaces and replaces them with spaces again?
+			.replace(/^([\-\+])?((?:    )+)/gm, (match, prefix = '', spaces) => {
+				if ((prefix && language !== 'diff') || language === 'yaml') return match;
 
-			// for no good reason at all, marked replaces tabs with spaces
-			let tabs = '';
-			for (let i = 0; i < spaces.length; i += 4) {
-				tabs += '  ';
-			}
-			return prefix + tabs;
-		})
-		.replace(/\*\\\//g, '*/');
+				// for no good reason at all, marked replaces tabs with spaces
+				let i = 0;
+				let tabs = '';
+				for (; i < spaces.length; i += 4) {
+					tabs += '\t';
+				}
+				tabs += ' '.repeat(i % 4);
+				return prefix + tabs;
+			})
+			.replace(/\*\\\//g, '*/')
+	);
 }
 
 /** @param {string} html */
@@ -923,11 +942,11 @@ function replace_blank_lines(html) {
 function syntax_highlight({ source, filename, language, highlighter, twoslashBanner, options }) {
 	let html = '';
 
-	if (language === 'dts') {
+	if (/^(dts|yaml|yml)/.test(language)) {
 		html = replace_blank_lines(
 			twoslash_module.renderCodeToHTML(
 				source,
-				'ts',
+				language === 'dts' ? 'ts' : language,
 				{ twoslash: false },
 				{ themeName: 'css-variables' },
 				highlighter
@@ -983,8 +1002,7 @@ function syntax_highlight({ source, filename, language, highlighter, twoslashBan
 			}
 		);
 
-		// preserve blank lines in output (maybe there's a more correct way to do this?)
-		html = html.replace(/<div class='line'><\/div>/g, '<div class="line"> </div>');
+		html = replace_blank_lines(html);
 	} else if (language === 'diff') {
 		const lines = source.split('\n').map((content) => {
 			let type = null;
@@ -1010,7 +1028,7 @@ function syntax_highlight({ source, filename, language, highlighter, twoslashBan
 			lang: SHIKI_LANGUAGE_MAP[/** @type {keyof typeof SHIKI_LANGUAGE_MAP} */ (language)]
 		});
 
-		html = highlighted.replace(/<div class='line'><\/div>/g, '<div class="line"> </div>');
+		html = replace_blank_lines(highlighted);
 	}
 
 	return html;

@@ -22,10 +22,28 @@ The main shell of the application. It provides a slot for the top navigation, th
 
 	/** @type {HTMLElement} */
 	let main_el;
+	let scroll_restored = false;
 
 	afterNavigate(() => {
-		main_el.scrollTop = 0;
+		if (!scroll_restored) {
+			main_el.scrollTop = 0;
+		}
+		scroll_restored = false;
 	});
+
+	/** @type {import('@sveltejs/kit').Snapshot<number>} */
+	export const snapshot = {
+		capture() {
+			return main_el.scrollTop;
+		},
+		restore(scroll_top) {
+			main_el.scrollTop = scroll_top;
+
+			// Restore is not called for the first navigation to a page,
+			// use this flag to track whether to reset the scroll to top or not in afterNavigate
+			scroll_restored = true;
+		}
+	};
 </script>
 
 <Icons />
@@ -47,7 +65,7 @@ The main shell of the application. It provides a slot for the top navigation, th
 </main>
 
 {#if banner_bottom_height !== '0px'}
-	<div style:--sk-banner-bottom-height={banner_bottom_height}>
+	<div class="banner-bottom" style:--sk-banner-bottom-height={banner_bottom_height}>
 		<slot name="banner-bottom" {banner_bottom_height} />
 	</div>
 {/if}
@@ -87,7 +105,22 @@ The main shell of the application. It provides a slot for the top navigation, th
 
 	@media (max-width: 800px) {
 		main {
-			padding-top: 0;
+			padding-top: var(--sk-banner-bottom-height);
+			padding-bottom: 0;
+		}
+	}
+
+	.banner-bottom {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+	}
+
+	@media (max-width: 800px) {
+		.banner-bottom {
+			bottom: initial;
+			top: 0;
 		}
 	}
 

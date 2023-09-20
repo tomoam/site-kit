@@ -1,5 +1,106 @@
 # @sveltejs/site-kit changelog
 
+## 6.0.0-next.47
+
+### Patch Changes
+
+- 0b25750: fix: banner positioning
+
+## 6.0.0-next.46
+
+### Patch Changes
+
+- a563f98: feat: OnThisPage orientation
+
+## 6.0.0-next.45
+
+### Patch Changes
+
+- bc5adba: chore: copy true by default
+
+## 6.0.0-next.44
+
+### Patch Changes
+
+- 1103304: feat: expose a way to capture scroll state from Shell
+- 66a4aff: fix: renderer indent code snippets by 2 spaces only
+
+## 6.0.0-next.43
+
+### Patch Changes
+
+- c4c2d3b: fix: diff symbols
+- b951416: fix: generics missing angle brackets
+
+## 6.0.0-next.42
+
+### Patch Changes
+
+- a1f2c5b: fix: infinite loop error replace_type_placeholder
+
+## 6.0.0-next.41
+
+### Patch Changes
+
+- 038eb8b: fix: Make DocsOnThisPage respect page.path
+
+## 6.0.0-next.40
+
+### Patch Changes
+
+- 73138b3: fix: deprecated blockquote
+
+## 6.0.0-next.39
+
+### Minor Changes
+
+- 358dd2d: fix: export open_nav function, storify some variables
+
+## 6.0.0-next.38
+
+### Patch Changes
+
+- 8e9e663: Wrap blockquote content on end of word, not every character
+
+## 6.0.0-next.37
+
+### Minor Changes
+
+- 1e675a8: (feat) Sections in context menu
+
+## 6.0.0-next.36
+
+### Patch Changes
+
+- 7adc6c2: fix: set font-display to swap
+
+## 6.0.0-next.35
+
+### Patch Changes
+
+- 0a13ec0: fix: update background color in other location
+
+## 6.0.0-next.34
+
+### Patch Changes
+
+- 469a410: fix: tweak background color to address contrast issues
+
+## 6.0.0-next.33
+
+### Patch Changes
+
+- 948e8e7: fix: accessibility heading levels in the footer
+
+## 6.0.0-next.32
+
+### Patch Changes
+
+- ecc020c: add searchbox placeholder as prop
+- 3be3255: fix: Use Marked constructor instead of global instance
+- acf2d83: (fix) Nav context menu autoscroll
+- 915ab09: fix: yaml code block rendering
+
 ## 6.0.0-next.31
 
 ### Patch Changes
