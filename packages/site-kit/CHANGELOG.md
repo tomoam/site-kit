@@ -1,5 +1,17 @@
 # @sveltejs/site-kit changelog
 
+## 6.0.0-next.52
+
+### Minor Changes
+
+- b780b9c: feat: banner
+
+## 6.0.0-next.51
+
+### Patch Changes
+
+- 4898bfd: fix: Do not copy deleted lines
+
 ## 6.0.0-next.50
 
 ### Patch Changes
