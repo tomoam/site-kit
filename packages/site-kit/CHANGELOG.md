@@ -1,5 +1,24 @@
 # @sveltejs/site-kit changelog
 
+## 6.0.0-next.59
+
+### Patch Changes
+
+- fc3a172: fix: Navbar Center positionin
+- 78138ab: fix: TS Toggle position
+
+## 6.0.0-next.58
+
+### Patch Changes
+
+- f2887a7: fix: preserve white space wrap on `<code>`
+
+## 6.0.0-next.57
+
+### Patch Changes
+
+- 019122c: fix: ios DocsOnThisPage no longer under overlay
+
 ## 6.0.0-next.56
 
 ### Patch Changes
